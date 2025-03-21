@@ -1,0 +1,46 @@
+UCF_ROOT = https://www.crcv.ucf.edu/data/UCF101/UCF101TrainTestSplits-RecognitionTask.zip
+_VIDEO_LIST = None  # 缓存视频列表
+_CACHE_DIR = tempfile.mkdtemp()  # 创建临时缓存目录
+unverified_context = ssl._create_unverified_context()  # 绕过SSL证书验证
+def list_ucf_videos():
+    global _VIDEO_LIST
+    if not _VIDEO_LIST:
+        index = request.urlopen(UCF_ROOT, context=unverified_context).read().decode("utf-8")
+        videos = re.findall("(v_[\w_]+\.avi)", index)  # 正则匹配视频文件名
+        _VIDEO_LIST = sorted(set(videos))  # 去重并排序
+    return list(_VIDEO_LIST)
+    def fetch_ucf_video(video):
+    cache_path = os.path.join(_CACHE_DIR, video)
+    if not os.path.exists(cache_path):
+        urlpath = request.urljoin(UCF_ROOT, video)
+        data = request.urlopen(urlpath, context=unverified_context).read()
+        open(cache_path, "wb").write(data)  # 写入本地缓存
+    return cache_path  # 返回本地路径
+    def crop_center_square(frame):
+    y, x = frame.shape[0:2]
+    min_dim = min(y, x)
+    start_x = (x // 2) - (min_dim // 2)
+    start_y = (y // 2) - (min_dim // 2)
+    return frame[start_y:start_y+min_dim, start_x:start_x+min_dim]
+    def load_video(path, max_frames=0, resize=(224, 224)):
+    cap = cv2.VideoCapture(path)
+    frames = []
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frame = crop_center_square(frame)  # 裁剪
+            frame = cv2.resize(frame, resize)  # 调整大小
+            frame = frame[:, :, [2, 1, 0]]  # BGR转RGB
+            frames.append(frame)
+            if max_frames > 0 and len(frames) == max_frames:
+                break
+    finally:
+        cap.release()
+    return np.array(frames) / 255.0  # 归一化到[0,1]
+    def to_gif(images):
+    converted_images = np.clip(images * 255, 0, 255).astype(np.uint8)
+    imageio.mimsave('./animation.gif', converted_images, duration=40)
+    return embed.embed_file('./animation.gif')  # 在Colab中内嵌显示GIF
+    
